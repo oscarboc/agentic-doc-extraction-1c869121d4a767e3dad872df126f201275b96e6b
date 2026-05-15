@@ -1,0 +1,45 @@
+[project]
+name = "agentic-doc-extraction"
+version = "0.1.0"
+description = "Agentic document extraction backend built with FastAPI and uv"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "azure-ai-documentintelligence>=1.0.2",
+    "azure-core>=1.35.1",
+    "google-cloud-vision>=3.10.0",
+    "fastapi>=0.135.1",
+    "httpx>=0.28.1",
+    "landingai-ade>=1.7.0",
+    "openai>=2.6.1",
+    "pydantic-settings>=2.13.1",
+    "python-multipart>=0.0.22",
+    "psycopg2-binary>=2.9.10",
+    "uvicorn>=0.41.0",
+    "ollama>=0.6.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=0.25.0",
+    "ruff>=0.15.5",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+markers = [
+    "asyncio: mark test as asyncio",
+]
+
+[tool.uv]
+package = false
