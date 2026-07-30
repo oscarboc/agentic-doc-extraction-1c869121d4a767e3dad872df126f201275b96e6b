@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Literal
 
@@ -21,6 +22,12 @@ except ImportError:  # pragma: no cover - dependency optional at import time
     google_vision = None  # type: ignore[assignment]
     MessageToDict = None  # type: ignore[assignment]
 
+try:
+    from pypdf import PdfReader, PdfWriter
+except ImportError:  # pragma: no cover - dependency optional at import time
+    PdfReader = None  # type: ignore[assignment]
+    PdfWriter = None  # type: ignore[assignment]
+
 ParserProvider = Literal["azure", "google_vision"]
 
 
@@ -38,6 +45,9 @@ class BaseDocumentParser:
     provider: ParserProvider
 
     def parse_document(self, *, document_path: Path, document_id: str) -> ParsedDocumentResult:
+        raise NotImplementedError
+
+    def parse_first_page(self, *, document_path: Path, document_id: str) -> ParsedDocumentResult:
         raise NotImplementedError
 
 
@@ -73,22 +83,50 @@ class AzureDocumentIntelligenceParser(BaseDocumentParser):
         )
 
     def parse_document(self, *, document_path: Path, document_id: str) -> ParsedDocumentResult:
+        return self._parse_document(document_path=document_path, document_id=document_id)
+
+    def parse_first_page(self, *, document_path: Path, document_id: str) -> ParsedDocumentResult:
+        return self._parse_document(
+            document_path=document_path,
+            document_id=document_id,
+            pages="1",
+            first_page_only=True,
+            output_name_suffix=".first_page",
+        )
+
+    def _parse_document(
+        self,
+        *,
+        document_path: Path,
+        document_id: str,
+        pages: str | None = None,
+        first_page_only: bool = False,
+        output_name_suffix: str = "",
+    ) -> ParsedDocumentResult:
         output_dir = self.output_root / document_id
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        file_bytes = document_path.read_bytes()
+        file_bytes = self._read_document_bytes(
+            document_path=document_path,
+            first_page_only=first_page_only,
+        )
+        analyze_kwargs: dict[str, Any] = {"output_content_format": "markdown"}
+        if pages:
+            analyze_kwargs["pages"] = pages
+
         poller = self.client.begin_analyze_document(
             self.model,
             AnalyzeDocumentRequest(bytes_source=file_bytes),
-            output_content_format="markdown",
+            **analyze_kwargs,
         )
         result = poller.result()
 
         markdown = getattr(result, "content", "") or ""
-        markdown_output_path = output_dir / f"{document_path.stem}.md"
+        output_stem = f"{document_path.stem}{output_name_suffix}"
+        markdown_output_path = output_dir / f"{output_stem}.md"
         markdown_output_path.write_text(markdown, encoding="utf-8")
 
-        raw_json_path = output_dir / f"{document_path.stem}.azure_parse_output.json"
+        raw_json_path = output_dir / f"{output_stem}.azure_parse_output.json"
         raw_payload = self._to_jsonable(result)
         raw_json_path.write_text(
             json.dumps(raw_payload, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -124,6 +162,24 @@ class AzureDocumentIntelligenceParser(BaseDocumentParser):
 
         return chunks
 
+    def _read_document_bytes(self, *, document_path: Path, first_page_only: bool) -> bytes:
+        if not first_page_only or document_path.suffix.lower() != ".pdf":
+            return document_path.read_bytes()
+
+        if PdfReader is None or PdfWriter is None:
+            raise RuntimeError("pypdf is required to extract the first PDF page.")
+
+        reader = PdfReader(str(document_path))
+        if not reader.pages:
+            raise ValueError("PDF has no pages to parse.")
+
+        writer = PdfWriter()
+        writer.add_page(reader.pages[0])
+
+        buffer = BytesIO()
+        writer.write(buffer)
+        return buffer.getvalue()
+
     def _to_jsonable(self, result: Any) -> dict[str, Any]:
         if hasattr(result, "as_dict"):
             return result.as_dict()
@@ -146,8 +202,7 @@ class GoogleCloudVisionParser(BaseDocumentParser):
     ) -> None:
         if google_vision is None:
             raise RuntimeError(
-                "Google Cloud Vision dependencies are not installed. "
-                "Install google-cloud-vision."
+                "Google Cloud Vision dependencies are not installed. Install google-cloud-vision."
             )
         self.output_root = output_root
         self.output_root.mkdir(parents=True, exist_ok=True)
@@ -189,9 +244,7 @@ class GoogleCloudVisionParser(BaseDocumentParser):
             provider=self.provider,
         )
 
-    def _process_image(
-        self, file_bytes: bytes
-    ) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
+    def _process_image(self, file_bytes: bytes) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
         image = google_vision.Image(content=file_bytes)
         response = self.client.document_text_detection(image=image)
         full_text = getattr(response.full_text_annotation, "text", "") or ""
@@ -199,9 +252,7 @@ class GoogleCloudVisionParser(BaseDocumentParser):
         raw_payload = MessageToDict(response._pb)  # type: ignore[union-attr]
         return full_text, chunks, raw_payload
 
-    def _process_pdf(
-        self, file_bytes: bytes
-    ) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
+    def _process_pdf(self, file_bytes: bytes) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
         input_config = google_vision.InputConfig(content=file_bytes, mime_type=_PDF_MIME)
         feature = google_vision.Feature(type_=google_vision.Feature.Type.DOCUMENT_TEXT_DETECTION)
         request = google_vision.AnnotateFileRequest(
@@ -225,9 +276,7 @@ class GoogleCloudVisionParser(BaseDocumentParser):
 
         return "\n\n".join(full_text_parts), chunks, {"responses": raw_responses}
 
-    def _extract_chunks(
-        self, text_annotation: Any, *, page_number: int
-    ) -> list[dict[str, Any]]:
+    def _extract_chunks(self, text_annotation: Any, *, page_number: int) -> list[dict[str, Any]]:
         chunks: list[dict[str, Any]] = []
         for page in getattr(text_annotation, "pages", []) or []:
             for block in getattr(page, "blocks", []) or []:
@@ -236,8 +285,7 @@ class GoogleCloudVisionParser(BaseDocumentParser):
                     words = getattr(paragraph, "words", []) or []
                     para_text = " ".join(
                         "".join(
-                            getattr(symbol, "text", "")
-                            for symbol in getattr(word, "symbols", [])
+                            getattr(symbol, "text", "") for symbol in getattr(word, "symbols", [])
                         )
                         for word in words
                     )
@@ -278,7 +326,19 @@ class DocumentParserRouter:
         document_id: str,
         provider: ParserProvider | None = None,
     ) -> ParsedDocumentResult:
-        selected = provider or self.default_provider
+        parser = self._select_parser(provider or self.default_provider)
+        return parser.parse_document(document_path=document_path, document_id=document_id)
+
+    def parse_first_page(
+        self,
+        *,
+        document_path: Path,
+        document_id: str,
+    ) -> ParsedDocumentResult:
+        parser = self._select_parser("azure")
+        return parser.parse_first_page(document_path=document_path, document_id=document_id)
+
+    def _select_parser(self, selected: ParserProvider) -> BaseDocumentParser:
         parser = self.parsers.get(selected)
         if parser is None:
             available = ", ".join(sorted(self.parsers.keys()))
@@ -288,4 +348,4 @@ class DocumentParserRouter:
             else:
                 msg += " No providers are currently configured."
             raise ValueError(msg)
-        return parser.parse_document(document_path=document_path, document_id=document_id)
+        return parser

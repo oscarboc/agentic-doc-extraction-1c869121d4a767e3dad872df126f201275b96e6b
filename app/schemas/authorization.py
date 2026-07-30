@@ -60,8 +60,6 @@ class AuthorizationResponse(BaseModel):
     @model_validator(mode="after")
     def filter_invalid_authorizations(self) -> "AuthorizationResponse":
         self.authorizations = [
-            auth
-            for auth in self.authorizations
-            if auth.numero_autorizacion not in (None, "")
+            auth for auth in self.authorizations if auth.numero_autorizacion not in (None, "")
         ]
         return self

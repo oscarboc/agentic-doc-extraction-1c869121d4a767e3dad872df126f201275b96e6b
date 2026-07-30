@@ -4,9 +4,10 @@ import psycopg2
 
 _conn = None
 
+
 def get_connection():
     global _conn
-    if _conn is None or getattr(_conn, 'closed', 1) != 0:
+    if _conn is None or getattr(_conn, "closed", 1) != 0:
         db_url = os.getenv("DATABASE_URL")
         if not db_url:
             print("No se encontró la variable de entorno 'DATABASE_URL'. Configúrala primero.")
@@ -48,7 +49,7 @@ def is_file_processed(filename: str) -> bool:
         )
         result = cursor.fetchone()
         cursor.close()
-        conn.commit() # Commit para finalizar cualquier transacción implícita
+        conn.commit()  # Commit para finalizar cualquier transacción implícita
         return bool(result)
     except Exception as e:
         print("Error al verificar si el archivo fue procesado:", e)

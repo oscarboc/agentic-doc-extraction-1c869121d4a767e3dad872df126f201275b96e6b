@@ -10,9 +10,7 @@ from fastapi import UploadFile
 
 class FileTooLargeError(ValueError):
     def __init__(self, *, size_bytes: int, max_size_bytes: int) -> None:
-        super().__init__(
-            f"File too large: {size_bytes} bytes exceeds max {max_size_bytes} bytes"
-        )
+        super().__init__(f"File too large: {size_bytes} bytes exceeds max {max_size_bytes} bytes")
         self.size_bytes = size_bytes
         self.max_size_bytes = max_size_bytes
 

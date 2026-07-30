@@ -60,13 +60,15 @@ async def parse_document(
             document_path=Path(saved.stored_path),
             document_id=saved.id,
         )
-        extraction, tokens_input, tokens_output = await extractor.extract_authorization(parsed.markdown)
+        extraction, tokens_input, tokens_output = await extractor.extract_authorization(
+            parsed.markdown
+        )
 
         # Extraction and recording of billing metadata
         azure_model_id = parsed.model
         extracted_pages = 0
         try:
-            with open(parsed.json_output_path, 'r', encoding='utf-8') as f:
+            with open(parsed.json_output_path, "r", encoding="utf-8") as f:
                 azure_data = json.load(f)
             pages = azure_data.get("pages", [])
             extracted_pages = len(pages)

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.api.routes import health, parsing
+from app.api.routes import health, parsing, patient
 from app.core.config import Settings
 from app.services.document_parser import (
     AzureDocumentIntelligenceParser,
@@ -86,3 +86,4 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 app.include_router(health.router)
 app.include_router(parsing.router, prefix="/api/v1")
+app.include_router(patient.router, prefix="/api/v1")

@@ -1,16 +1,7 @@
-import asyncio
-import json
-import os
-import sys
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
-
-# Make sure the app package is importable when running pytest
-APP_ROOT = Path("~/Projects/agentic-doc-extraction").expanduser()
-if str(APP_ROOT) not in sys.path:
-    sys.path.append(str(APP_ROOT))
 
 from app.core.config import Settings
 from app.services.document_parser import (
@@ -33,9 +24,7 @@ async def process_file(file_path, parser, extractor, settings):
             document_id=document_id,
         )
 
-        extraction, tokens_in, tokens_out = await extractor.extract_authorization(
-            parsed.markdown
-        )
+        extraction, tokens_in, tokens_out = await extractor.extract_authorization(parsed.markdown)
 
         # Validations
         valid_auths = []
@@ -55,7 +44,8 @@ async def process_file(file_path, parser, extractor, settings):
             clean_num = "".join(filter(str.isdigit, str(auth_num)))
             if len(clean_num) != 14:
                 anomalies.append(
-                    f"Auth {i}: numero_autorizacion '{auth_num}' no tiene 14 dígitos (tiene {len(clean_num)})"
+                    f"Auth {i}: numero_autorizacion '{auth_num}' no tiene 14 dígitos "
+                    f"(tiene {len(clean_num)})"
                 )
             else:
                 valid_auths.append(auth)
@@ -84,8 +74,9 @@ def settings():
 @pytest.fixture(scope="session")
 def parser(settings):
     from app.services.document_parser import GoogleCloudVisionParser
+
     parsers = {}
-    
+
     if settings.azure_document_intelligence_endpoint and settings.azure_document_intelligence_key:
         parsers["azure"] = AzureDocumentIntelligenceParser(
             output_root=settings.parse_output_dir,
@@ -106,9 +97,7 @@ def parser(settings):
         pytest.skip("Ningún proveedor de OCR configurado.")
 
     default_provider = (
-        settings.ocr_provider
-        if settings.ocr_provider in parsers
-        else next(iter(parsers), "azure")
+        settings.ocr_provider if settings.ocr_provider in parsers else next(iter(parsers), "azure")
     )
 
     return DocumentParserRouter(
