@@ -1,0 +1,20 @@
+services:
+  agentic-doc-extraction:
+    build: .
+    container_name: agentic-doc-extraction-test
+    ports:
+      - "8765:5090"
+    environment:
+      AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}
+      AZURE_DOCUMENT_INTELLIGENCE_KEY: ${AZURE_DOCUMENT_INTELLIGENCE_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DATABASE_URL: ${DATABASE_URL}
+      MODEL_PROVIDER: ${MODEL_PROVIDER:-openai}
+      OCR_PROVIDER: ${OCR_PROVIDER:-azure}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-nano}
+      API_KEY: ${API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://192.168.5.51:11434/}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gpt-oss-20b}
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1
