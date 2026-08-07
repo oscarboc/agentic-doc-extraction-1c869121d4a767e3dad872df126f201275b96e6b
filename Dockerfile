@@ -52,7 +52,7 @@ USER appuser
 EXPOSE 5090
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=20s --start-period=30s --retries=5 \
     CMD curl -f http://localhost:5090/health || exit 1
 
 # Run the application (Corrected to app.main:app as per project structure)
