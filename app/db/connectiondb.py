@@ -56,6 +56,19 @@ def get_connection() -> Iterator[psycopg2.extensions.connection | None]:
         return
 
     conn = pool.getconn()
+    # Pre-ping: detect connections closed server-side by the pooler (e.g. Supavisor
+    # idle eviction) before the caller tries to use them.  If the lightweight probe
+    # fails the stale connection is discarded and a fresh one is obtained.
+    try:
+        with conn.cursor() as _cur:
+            _cur.execute("SELECT 1")
+    except Exception:
+        try:
+            pool.putconn(conn, close=True)
+        except Exception:
+            pass
+        conn = pool.getconn()
+
     try:
         yield conn
     finally:
